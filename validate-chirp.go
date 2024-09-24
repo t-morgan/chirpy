@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 func handleValidateChirp(w http.ResponseWriter, r *http.Request) {
@@ -28,9 +29,10 @@ func handleValidateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type response struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
-	respondWithJSON(w, 200, response{Valid: true})
+	cleanedChirp := cleanChirp(params.Body)
+	respondWithJSON(w, 200, response{CleanedBody: cleanedChirp})
 }
 
 func validateChirp(chirp string) error {
@@ -39,4 +41,20 @@ func validateChirp(chirp string) error {
 	}
 
 	return nil
+}
+
+func cleanChirp(chirp string) string {
+	replacement := "****"
+
+	splitStr := strings.Split(chirp, " ")
+	for i, word := range splitStr {
+		lowerStr := strings.ToLower(word)
+		if lowerStr == "kerfuffle" || lowerStr == "sharbert" || lowerStr == "fornax" {
+			splitStr[i] = replacement
+		}
+
+	}
+	chirp = strings.Join(splitStr, " ")
+
+	return chirp
 }
