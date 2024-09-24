@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 )
 
@@ -16,32 +15,22 @@ func handleValidateChirp(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
+	
 	if err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		http.Error(w, fmt.Sprintf("Error decoding parameters: %s", err), http.StatusBadRequest)
+		respondWithError(w, http.StatusInternalServerError, "Error decoding parameters", err)
 		return
 	}
 
 	err = validateChirp(params.Body)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error validating body: %s", err), http.StatusBadRequest)
+		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error validating body: %s", err), err)
 		return
 	}
 
 	type response struct {
 		Valid bool `json:"valid"`
 	}
-	responseBody := response{Valid: true}
-	dat, err := json.Marshal(responseBody)
-	if err != nil {
-		log.Printf("Error marshalling response: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(dat)
+	respondWithJSON(w, 200, response{Valid: true})
 }
 
 func validateChirp(chirp string) error {
