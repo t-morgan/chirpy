@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/t-morgan/chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
+	dbQueries *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
