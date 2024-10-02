@@ -13,6 +13,7 @@ import (
 
 func main() {
 	godotenv.Load()
+	platform := os.Getenv("PLATFORM")
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -28,16 +29,18 @@ func main() {
 
 	apiCfg := apiConfig{
 		fileserverHits: 0,
-		dbQueries: dbQueries,
+		dbQueries:      dbQueries,
+		platform:       platform,
 	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))
 
 	mux.HandleFunc("GET /api/healthz", handleHealthz)
-	mux.HandleFunc("GET /api/reset", apiCfg.handleReset)
 	mux.HandleFunc("POST /api/validate_chirp", handleValidateChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
 
+	mux.HandleFunc("POST /admin/reset", apiCfg.handleReset)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handleMetrics)
 
 	var srv http.Server

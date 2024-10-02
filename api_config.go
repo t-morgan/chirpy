@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/t-morgan/chirpy/internal/database"
@@ -10,7 +11,8 @@ import (
 
 type apiConfig struct {
 	fileserverHits int
-	dbQueries *database.Queries
+	dbQueries      *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -34,6 +36,14 @@ func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	err := cfg.dbQueries.DeleteAllUsers(r.Context())
+	if err != nil {
+		log.Printf("Error: %s", err)
+	}
 	cfg.fileserverHits = 0
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
