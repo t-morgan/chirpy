@@ -2,15 +2,28 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"strings"
+	"time"
+	"fmt"
+	"errors"
+
+	"github.com/google/uuid"
+	"github.com/t-morgan/chirpy/internal/database"
 )
 
-func handleValidateChirp(w http.ResponseWriter, r *http.Request) {
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -28,11 +41,27 @@ func handleValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type response struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
 	cleanedChirp := cleanChirp(params.Body)
-	respondWithJSON(w, 200, response{CleanedBody: cleanedChirp})
+
+	createChirpParams := database.CreateChirpParams{
+		Body:   cleanedChirp,
+		UserID: params.UserID,
+	}
+	var dbChirp database.Chirp
+	dbChirp, err = cfg.dbQueries.CreateChirp(r.Context(), createChirpParams)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
+		return
+	}
+
+	chirp := Chirp{
+		ID:        dbChirp.ID,
+		CreatedAt: dbChirp.CreatedAt,
+		UpdatedAt: dbChirp.UpdatedAt,
+		Body:      dbChirp.Body,
+		UserID:    dbChirp.UserID,
+	}
+	respondWithJSON(w, 201, chirp)
 }
 
 func validateChirp(chirp string) error {
