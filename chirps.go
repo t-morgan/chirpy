@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
-	"fmt"
-	"errors"
 
 	"github.com/google/uuid"
 	"github.com/t-morgan/chirpy/internal/database"
@@ -62,6 +62,26 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		UserID:    dbChirp.UserID,
 	}
 	respondWithJSON(w, 201, chirp)
+}
+
+func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	dbChirps, err := cfg.dbQueries.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
+		return
+	}
+
+	var chirps []Chirp
+	for _, chirp := range dbChirps {
+		chirps = append(chirps, Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+	respondWithJSON(w, 200, chirps)
 }
 
 func validateChirp(chirp string) error {
