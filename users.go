@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/t-morgan/chirpy/internal/auth"
 	"github.com/t-morgan/chirpy/internal/database"
 )
 
@@ -19,7 +20,8 @@ type User struct {
 
 func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -31,10 +33,16 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser := database.User{
-		Email: params.Email,
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error", err)
+		return
 	}
-	dbUser, err = cfg.dbQueries.CreateUser(r.Context(), dbUser.Email)
+
+	dbUser, err := cfg.dbQueries.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	})
 	if err != nil {
 		isDuplicate := strings.HasPrefix(err.Error(), "pq: duplicate key value violates unique constraint")
 		if isDuplicate {
@@ -45,11 +53,10 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := User{
+	respondWithJSON(w, http.StatusCreated, User{
 		ID:        dbUser.ID,
 		CreatedAt: dbUser.CreatedAt,
 		UpdatedAt: dbUser.UpdatedAt,
 		Email:     dbUser.Email,
-	}
-	respondWithJSON(w, 201, user)
+	})
 }
