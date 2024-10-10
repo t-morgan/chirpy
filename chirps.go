@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/t-morgan/chirpy/internal/auth"
 	"github.com/t-morgan/chirpy/internal/database"
 )
 
@@ -36,6 +37,17 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Not authorized", err)
+		return
+	}
+	tokenId, err := auth.ValidateJWT(tokenString, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Not authorized", err)
+		return
+	}
+
 	err = validateChirp(params.Body)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Error validating body: %s", err), err)
@@ -44,25 +56,22 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 
 	cleanedChirp := cleanChirp(params.Body)
 
-	createChirpParams := database.CreateChirpParams{
+	dbChirp, err := cfg.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleanedChirp,
-		UserID: params.UserID,
-	}
-	var dbChirp database.Chirp
-	dbChirp, err = cfg.dbQueries.CreateChirp(r.Context(), createChirpParams)
+		UserID: tokenId,
+	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
 		return
 	}
 
-	chirp := Chirp{
+	respondWithJSON(w, 201, Chirp{
 		ID:        dbChirp.ID,
 		CreatedAt: dbChirp.CreatedAt,
 		UpdatedAt: dbChirp.UpdatedAt,
 		Body:      dbChirp.Body,
 		UserID:    dbChirp.UserID,
-	}
-	respondWithJSON(w, 201, chirp)
+	})
 }
 
 func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {

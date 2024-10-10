@@ -13,6 +13,7 @@ type apiConfig struct {
 	fileserverHits int
 	dbQueries      *database.Queries
 	platform       string
+	jwtSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
