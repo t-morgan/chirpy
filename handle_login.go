@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/t-morgan/chirpy/internal/auth"
+	"github.com/t-morgan/chirpy/internal/database"
 )
 
 const DefaultExpiresInSeconds int = 60 * 60
 
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -37,21 +37,32 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if params.ExpiresInSeconds == 0 {
-		params.ExpiresInSeconds = DefaultExpiresInSeconds
-	}
-
-	expiresIn := time.Duration(params.ExpiresInSeconds) * time.Second
+	expiresIn := time.Duration(DefaultExpiresInSeconds) * time.Second
 	jwt, err := auth.MakeJWT(user.ID, cfg.jwtSecret, expiresIn)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to make JWT", err)
+		return
 	}
 
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to make refresh token", err)
+		return
+	}
+
+	sixtyDaysFromNow := time.Now().UTC().Add(time.Duration(24*60) * time.Hour)
+	cfg.dbQueries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    user.ID,
+		ExpiresAt: sixtyDaysFromNow,
+	})
+
 	respondWithJSON(w, http.StatusOK, User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     jwt,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        jwt,
+		RefreshToken: refreshToken,
 	})
 }
