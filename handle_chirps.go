@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -75,10 +76,37 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
-	dbChirps, err := cfg.dbQueries.GetAllChirps(r.Context())
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
-		return
+	query := r.URL.Query()
+	authorID := query.Get("author_id")
+	sort := query.Get("sort")
+
+	var dbChirps []database.Chirp
+
+	if authorID != "" {
+		authorID, err := uuid.Parse(authorID)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Unable to parse author id", err)
+			return
+		}
+
+		dbChirps, err = cfg.dbQueries.GetAllChirpsByUserID(r.Context(), authorID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				respondWithError(w, http.StatusNotFound, "Chirps not found for author id", err)
+				return
+			}
+			respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps for author id", err)
+			return
+		}
+	}
+
+	if authorID == "" {
+		dbChirpsResult, err := cfg.dbQueries.GetAllChirps(r.Context())
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
+			return
+		}
+		dbChirps = dbChirpsResult
 	}
 
 	var chirps []Chirp
@@ -91,6 +119,11 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request)
 			UserID:    chirp.UserID,
 		})
 	}
+
+	if sort == "desc" {
+		slices.Reverse(chirps)
+	}
+
 	respondWithJSON(w, http.StatusOK, chirps)
 }
 
