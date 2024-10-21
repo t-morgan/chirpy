@@ -65,7 +65,7 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	respondWithJSON(w, 201, Chirp{
+	respondWithJSON(w, http.StatusCreated, Chirp{
 		ID:        dbChirp.ID,
 		CreatedAt: dbChirp.CreatedAt,
 		UpdatedAt: dbChirp.UpdatedAt,
@@ -91,7 +91,7 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request)
 			UserID:    chirp.UserID,
 		})
 	}
-	respondWithJSON(w, 200, chirps)
+	respondWithJSON(w, http.StatusOK, chirps)
 }
 
 func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +119,48 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 		UserID:    dbChirp.UserID,
 	})
 
+}
+
+func (cfg *apiConfig) handleDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Error reading chirpID", err)
+		return
+	}
+
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Not authorized", err)
+		return
+	}
+	tokenId, err := auth.ValidateJWT(tokenString, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Not authorized", err)
+		return
+	}
+
+	dbChirp, err := cfg.dbQueries.GetChirp(r.Context(), chirpID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Chirp not found", err)
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Error retrieving chirp", err)
+		return
+	}
+
+	if dbChirp.UserID != tokenId {
+		respondWithError(w, http.StatusForbidden, "Forbidden", errors.New("not authorized"))
+		return
+	}
+
+	err = cfg.dbQueries.DeleteChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to delete chirp", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusNoContent, nil)
 }
 
 func validateChirp(chirp string) error {
