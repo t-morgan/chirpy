@@ -25,7 +25,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.dbQueries.GetUser(r.Context(), params.Email)
+	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), params.Email)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
 		return
@@ -62,6 +62,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
 		Email:        user.Email,
+		IsChirpyRed:  user.IsChirpyRed,
 		Token:        jwt,
 		RefreshToken: refreshToken,
 	})
